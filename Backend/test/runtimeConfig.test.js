@@ -34,7 +34,6 @@ test("validateRuntimeConfig passes when required variables are present and PDF p
     {
       ...createBaseEnv(),
       PDF_PIPELINE_ENABLED: "false",
-      REDIS_URL: "",
       OBJECT_STORAGE_BUCKET: ""
     },
     () => {
@@ -43,18 +42,29 @@ test("validateRuntimeConfig passes when required variables are present and PDF p
   );
 });
 
-test("validateRuntimeConfig requires Redis and storage bucket when PDF pipeline enabled", () => {
+test("validateRuntimeConfig allows Mongo fallback storage when PDF pipeline enabled", () => {
   withPatchedEnv(
     {
       ...createBaseEnv(),
       PDF_PIPELINE_ENABLED: "true",
-      REDIS_URL: "",
+      PDF_STORAGE_MONGO_FALLBACK: "true",
       OBJECT_STORAGE_BUCKET: ""
     },
     () => {
-      assert.throws(() => validateRuntimeConfig(), /REDIS_URL is required/i);
+      assert.doesNotThrow(() => validateRuntimeConfig());
+    }
+  );
+});
 
-      process.env.REDIS_URL = "redis://127.0.0.1:6379";
+test("validateRuntimeConfig requires object storage bucket when Mongo fallback is disabled", () => {
+  withPatchedEnv(
+    {
+      ...createBaseEnv(),
+      PDF_PIPELINE_ENABLED: "true",
+      PDF_STORAGE_MONGO_FALLBACK: "false",
+      OBJECT_STORAGE_BUCKET: ""
+    },
+    () => {
       assert.throws(() => validateRuntimeConfig(), /OBJECT_STORAGE_BUCKET is required/i);
 
       process.env.OBJECT_STORAGE_BUCKET = "careerforge-test-pdfs";

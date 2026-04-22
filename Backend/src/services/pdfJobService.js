@@ -1218,19 +1218,23 @@ async function executePdfJob(jobId) {
   }
 }
 
-async function bootstrapPendingPdfJobsToRedisQueue() {
+async function bootstrapPendingPdfJobsToMongoQueue() {
   if (queueBootstrapped) {
     return;
   }
 
-  const pendingJobs = await PdfJob.find({
-    status: { $in: ["queued", "processing"] }
+  const orphanedProcessingJobs = await PdfJob.find({
+    status: "processing",
+    $or: [
+      { startedAt: null },
+      { startedAt: { $exists: false } }
+    ]
   })
     .sort({ createdAt: 1 })
     .select({ _id: 1 })
     .lean();
 
-  const pendingJobIds = pendingJobs
+  const pendingJobIds = orphanedProcessingJobs
     .map((job) => String(job?._id || "").trim())
     .filter(Boolean);
 
@@ -1280,7 +1284,7 @@ async function startPdfQueueWorker(options = {}) {
     return null;
   }
 
-  await bootstrapPendingPdfJobsToRedisQueue();
+  await bootstrapPendingPdfJobsToMongoQueue();
 
   if (workerLoopPromise) {
     return workerLoopPromise;

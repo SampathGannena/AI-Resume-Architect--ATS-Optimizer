@@ -34,13 +34,18 @@ function isPdfPipelineEnabled() {
   return isFeatureEnabled(process.env.PDF_PIPELINE_ENABLED, false);
 }
 
+function isMongoPdfFallbackEnabled() {
+  return isFeatureEnabled(process.env.PDF_STORAGE_MONGO_FALLBACK, true);
+}
+
 function validatePdfPipelineConfig() {
   if (!isPdfPipelineEnabled()) {
     return;
   }
 
-  assertPresent("REDIS_URL");
-  assertPresent("OBJECT_STORAGE_BUCKET");
+  if (!isMongoPdfFallbackEnabled()) {
+    assertPresent("OBJECT_STORAGE_BUCKET");
+  }
 }
 
 function validateRuntimeConfig() {

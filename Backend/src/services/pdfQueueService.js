@@ -1,75 +1,44 @@
-const Redis = require("ioredis");
+const mongoose = require("mongoose");
+const PdfJob = require("../models/PdfJob");
 
 const DEFAULT_QUEUE_KEY = "careerforge:pdf:jobs";
+const DEFAULT_POLL_INTERVAL_MS = 350;
+const DEFAULT_STALE_PROCESSING_MS = 15 * 60 * 1000;
+const DEFAULT_STALE_REQUEUE_BATCH_SIZE = 50;
+const STALE_SWEEP_MIN_INTERVAL_MS = 10_000;
 
-let producerClient = null;
-let consumerClient = null;
+let lastStaleSweepAt = 0;
 
-function normalizeBoolean(value, fallback = false) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true" || normalized === "1") return true;
-    if (normalized === "false" || normalized === "0") return false;
+function normalizeNumber(value, { fallback, min, max }) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
   }
 
-  return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
 }
 
 function resolveQueueConfig() {
-  const redisUrl = String(process.env.REDIS_URL || "").trim();
   const queueKey = String(process.env.PDF_QUEUE_KEY || DEFAULT_QUEUE_KEY).trim() || DEFAULT_QUEUE_KEY;
 
   return {
-    redisUrl,
     queueKey,
-    keyPrefix: String(process.env.REDIS_KEY_PREFIX || "").trim() || undefined,
-    enableReadyCheck: normalizeBoolean(process.env.REDIS_ENABLE_READY_CHECK, true),
-    maxRetriesPerRequest: null,
-    connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 10_000)
+    pollIntervalMs: normalizeNumber(process.env.PDF_QUEUE_POLL_INTERVAL_MS, {
+      fallback: DEFAULT_POLL_INTERVAL_MS,
+      min: 50,
+      max: 5_000
+    }),
+    staleProcessingMs: normalizeNumber(process.env.PDF_QUEUE_STALE_PROCESSING_MS, {
+      fallback: DEFAULT_STALE_PROCESSING_MS,
+      min: 30_000,
+      max: 12 * 60 * 60 * 1000
+    }),
+    staleRequeueBatchSize: normalizeNumber(process.env.PDF_QUEUE_STALE_REQUEUE_BATCH_SIZE, {
+      fallback: DEFAULT_STALE_REQUEUE_BATCH_SIZE,
+      min: 1,
+      max: 1_000
+    })
   };
-}
-
-function ensureRedisConfigured() {
-  const config = resolveQueueConfig();
-  if (!config.redisUrl) {
-    throw new Error("REDIS_URL is required for PDF queue.");
-  }
-
-  return config;
-}
-
-function createRedisClient({ role }) {
-  const config = ensureRedisConfigured();
-
-  const client = new Redis(config.redisUrl, {
-    keyPrefix: config.keyPrefix,
-    enableReadyCheck: config.enableReadyCheck,
-    maxRetriesPerRequest: config.maxRetriesPerRequest,
-    connectTimeout: config.connectTimeout
-  });
-
-  client.on("error", (error) => {
-    console.error(`[pdf-queue:${role}] redis error`, error?.message || error);
-  });
-
-  return client;
-}
-
-async function getProducerClient() {
-  if (!producerClient) {
-    producerClient = createRedisClient({ role: "producer" });
-  }
-
-  return producerClient;
-}
-
-async function getConsumerClient() {
-  if (!consumerClient) {
-    consumerClient = createRedisClient({ role: "consumer" });
-  }
-
-  return consumerClient;
 }
 
 function normalizeJobId(jobId) {
@@ -78,31 +47,131 @@ function normalizeJobId(jobId) {
     throw new Error("PDF_JOB_ID_REQUIRED");
   }
 
+  if (!mongoose.isValidObjectId(normalized)) {
+    throw new Error("PDF_JOB_ID_INVALID");
+  }
+
   return normalized;
+}
+
+function normalizeJobIdList(jobIds = []) {
+  if (!Array.isArray(jobIds)) {
+    return [];
+  }
+
+  return jobIds
+    .map((jobId) => String(jobId || "").trim())
+    .filter(Boolean)
+    .filter((jobId) => mongoose.isValidObjectId(jobId));
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function enqueuePdfJob(jobId) {
   const normalizedJobId = normalizeJobId(jobId);
-  const client = await getProducerClient();
-  const { queueKey } = resolveQueueConfig();
 
-  await client.lpush(queueKey, normalizedJobId);
+  await PdfJob.updateOne(
+    {
+      _id: normalizedJobId,
+      status: { $ne: "completed" }
+    },
+    {
+      $set: {
+        status: "queued",
+        startedAt: null,
+        failedAt: null
+      }
+    }
+  );
 }
 
 async function enqueueManyPdfJobs(jobIds = []) {
-  const normalized = Array.isArray(jobIds)
-    ? jobIds
-        .map((jobId) => String(jobId || "").trim())
-        .filter(Boolean)
-    : [];
+  const normalized = normalizeJobIdList(jobIds);
 
   if (!normalized.length) {
     return;
   }
 
-  const client = await getProducerClient();
-  const { queueKey } = resolveQueueConfig();
-  await client.lpush(queueKey, ...normalized);
+  await PdfJob.updateMany(
+    {
+      _id: { $in: normalized },
+      status: { $in: ["queued", "processing", "failed"] }
+    },
+    {
+      $set: {
+        status: "queued",
+        startedAt: null,
+        failedAt: null
+      }
+    }
+  );
+}
+
+async function maybeRequeueStaleProcessingJobs(config) {
+  const now = Date.now();
+  if (now - lastStaleSweepAt < STALE_SWEEP_MIN_INTERVAL_MS) {
+    return 0;
+  }
+  lastStaleSweepAt = now;
+
+  const staleBefore = new Date(now - config.staleProcessingMs);
+  const staleJobs = await PdfJob.find({
+    status: "processing",
+    startedAt: { $lt: staleBefore },
+    $expr: { $lt: ["$attempts", "$maxAttempts"] }
+  })
+    .sort({ startedAt: 1 })
+    .limit(config.staleRequeueBatchSize)
+    .select({ _id: 1 })
+    .lean();
+
+  const staleJobIds = staleJobs
+    .map((job) => String(job?._id || "").trim())
+    .filter(Boolean);
+
+  if (!staleJobIds.length) {
+    return 0;
+  }
+
+  await PdfJob.updateMany(
+    { _id: { $in: staleJobIds } },
+    {
+      $set: {
+        status: "queued",
+        startedAt: null,
+        failedAt: null,
+        error: "REQUEUED_AFTER_STALE_PROCESSING"
+      }
+    }
+  );
+
+  return staleJobIds.length;
+}
+
+async function claimQueuedJob() {
+  const claimedJob = await PdfJob.findOneAndUpdate(
+    { status: "queued" },
+    {
+      $set: {
+        status: "processing",
+        startedAt: new Date()
+      }
+    },
+    {
+      sort: { createdAt: 1 },
+      new: true
+    }
+  )
+    .select({ _id: 1 })
+    .lean();
+
+  if (!claimedJob?._id) {
+    return null;
+  }
+
+  return String(claimedJob._id);
 }
 
 async function reservePdfJob(options = {}) {
@@ -111,33 +180,31 @@ async function reservePdfJob(options = {}) {
     ? Math.max(1, Math.min(60, Math.trunc(timeoutSecondsRaw)))
     : 5;
 
-  const client = await getConsumerClient();
-  const { queueKey } = resolveQueueConfig();
-  const result = await client.brpop(queueKey, timeoutSeconds);
+  const timeoutMs = timeoutSeconds * 1000;
+  const config = resolveQueueConfig();
+  const deadline = Date.now() + timeoutMs;
 
-  if (!result) {
-    return null;
+  while (Date.now() < deadline) {
+    await maybeRequeueStaleProcessingJobs(config);
+
+    const claimedJobId = await claimQueuedJob();
+    if (claimedJobId) {
+      return claimedJobId;
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
+
+    await delay(Math.min(config.pollIntervalMs, remainingMs));
   }
 
-  return String(result[1] || "").trim() || null;
+  return null;
 }
 
 async function closePdfQueueClients() {
-  const closeClient = async (client) => {
-    if (!client) return;
-
-    try {
-      await client.quit();
-    } catch {
-      client.disconnect();
-    }
-  };
-
-  await closeClient(producerClient);
-  await closeClient(consumerClient);
-
-  producerClient = null;
-  consumerClient = null;
+  return null;
 }
 
 module.exports = {

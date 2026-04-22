@@ -40,12 +40,18 @@ Required variables:
 - `MONGODB_URI`
 - `JWT_SECRET` (minimum 32 characters)
 - `PDF_SIGNING_SECRET` (minimum 32 characters)
-- `REDIS_URL` (required when `PDF_PIPELINE_ENABLED=true`)
-- `OBJECT_STORAGE_BUCKET` (required when `PDF_PIPELINE_ENABLED=true`)
+- `OBJECT_STORAGE_BUCKET` (required only when `PDF_PIPELINE_ENABLED=true` and `PDF_STORAGE_MONGO_FALLBACK=false`)
+
+Queue worker (Mongo-backed):
+
+- The PDF queue worker claims queued jobs directly from MongoDB.
+- No Redis setup is required for queue processing.
+- Optional tuning variables: `PDF_QUEUE_POLL_INTERVAL_MS`, `PDF_QUEUE_STALE_PROCESSING_MS`, `PDF_QUEUE_STALE_REQUEUE_BATCH_SIZE`.
 
 Optional local fallback:
 
-- Set `PDF_PIPELINE_ENABLED=false` if you want to run without Redis/object storage.
+- Set `PDF_PIPELINE_ENABLED=false` if you want to run without the queue worker.
+- Keep `PDF_STORAGE_MONGO_FALLBACK=true` to allow PDF storage in MongoDB when object storage is unavailable.
 
 2. Start backend
 
