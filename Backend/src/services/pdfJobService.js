@@ -1405,6 +1405,7 @@ async function resolveSignedAsset(token) {
   try {
     if (asset.storageKey) {
       const fileBuffer = await downloadPdfBuffer({
+        provider: asset.storageProvider,
         bucket: asset.storageBucket,
         key: asset.storageKey
       });
