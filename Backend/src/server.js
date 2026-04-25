@@ -17,7 +17,7 @@ const { startPdfQueueWorker } = require("./services/pdfJobService");
 
 const app = express();
 const port = process.env.PORT || 3000;
-const defaultCorsOrigins = ["http://localhost:5173", "http://localhost:5174"];
+const defaultCorsOrigins = ["http://10.214.122.10:5173/","http://localhost:5173", "http://localhost:5174"];
 const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim())
