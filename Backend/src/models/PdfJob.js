@@ -71,6 +71,9 @@ const pdfJobSchema = new mongoose.Schema(
   }
 );
 
+// Queue-optimizing index: supports status+createdAt queries for fast job claiming at scale
+// Uses background:true to avoid blocking production index builds
+pdfJobSchema.index({ status: 1, createdAt: 1 }, { background: true });
 pdfJobSchema.index({ userId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.models.PdfJob || mongoose.model("PdfJob", pdfJobSchema);

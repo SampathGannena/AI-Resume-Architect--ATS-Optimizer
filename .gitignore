@@ -25,7 +25,7 @@ dist-ssr
 *.sw?
 
 # Monorepo app folders
-Backend/node_modules/.env/
+Backend/node_modules/.env/.env.example/
 Frontend/node_modules/
 Frontend/dist/
 .env
