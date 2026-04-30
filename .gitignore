@@ -1,34 +1,42 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
 # Logs
-logs
+logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# Build and dependencies
-node_modules
-dist
-dist-ssr
-*.local
+# dotenv environment variables
+.env
+.env.*
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Build output
+build/
+dist/
+
+# VS Code
+.vscode/
+
+# OS
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
 
-# Monorepo app folders
-Backend/node_modules/.env/.env.example/
+# Bun
+bun.lockb
+
+# Test coverage
+coverage/
+
+# Frontend
 Frontend/node_modules/
 Frontend/dist/
-.env
-*.log
-Backend/generated-pdfs/
-Backend/tmp/
+Frontend/.env
+Frontend/.env.*
+
+# Backend/Server
+server/node_modules/
+server/dist/
+server/.env
+server/.env.*
