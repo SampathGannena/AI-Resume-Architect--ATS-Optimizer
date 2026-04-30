@@ -21,8 +21,11 @@ const app = express();
 connectDB();
 
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || process.env.FRONTEND_URL,
-  credentials: true,
+  origin: [
+    'http://localhost:5173', // for local dev
+    'https://carrerforge.up.railway.app' // your deployed frontend
+  ],
+  credentials: true // if you use cookies or auth headers
 }));
 
 // Stripe webhook MUST receive raw body (mounted before express.json)
