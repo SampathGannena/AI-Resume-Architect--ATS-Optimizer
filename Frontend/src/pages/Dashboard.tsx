@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FileText, Mail, Plus, Trash2, Crown, Loader2, ArrowRight, Check } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -10,10 +10,130 @@ import MinionRobotIcon from "@/components/MinionRobotIcon";
 import { useAuth, useSubscription, FREE_RESUME_LIMIT, FREE_COVER_LETTER_LIMIT } from "@/hooks/useAuth";
 import { resumeApi } from "@/lib/api/resume";
 import { coverLetterApi } from "@/lib/api/coverLetter";
+import { computeAts } from "@/lib/atsScore";
+import { EMPTY_RESUME, type AiResult, type Keyword, type ResumeData } from "@/lib/resumeTypes";
 import { toast } from "@/hooks/use-toast";
 
-type Resume = { id: string; title: string; updatedAt: string; atsScore: number | null; optimizedScore: number | null; template: string };
+type Resume = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  atsScore: number | null;
+  optimizedScore: number | null;
+  liveAtsScore: number;
+  liveAtsBand: string;
+  template: string;
+};
 type CoverLetter = { id: string; title: string; updatedAt: string };
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? value as Record<string, unknown> : {};
+
+const asString = (value: unknown) => typeof value === "string" ? value : "";
+
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.map((item) => asString(item).trim()).filter(Boolean) : [];
+
+const normalizeKeywords = (value: unknown): Keyword[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      const keyword = asRecord(item);
+      const importance = keyword.importance === "critical" || keyword.importance === "high" ? keyword.importance : "medium";
+      const term = asString(keyword.term).trim();
+
+      return term ? { term, importance, presentInResume: Boolean(keyword.presentInResume) } : null;
+    })
+    .filter((item): item is Keyword => item !== null);
+};
+
+const adaptResumeData = (rawValue: unknown): ResumeData => {
+  const raw = asRecord(rawValue);
+  if (Object.keys(raw).length === 0) return EMPTY_RESUME;
+
+  const basics = asRecord(raw.basics);
+  const projects = Array.isArray(raw.projects)
+    ? raw.projects.map((projectValue) => {
+      const project = asRecord(projectValue);
+      return {
+        name: asString(project.name),
+        description: asString(project.description),
+        bullets: asStringArray(project.bullets),
+        link: asString(project.link),
+      };
+    })
+    : [];
+
+  return {
+    name: asString(raw.name) || asString(basics.name),
+    headline: asString(raw.headline) || asString(raw.title) || asString(basics.headline),
+    email: asString(raw.email) || asString(basics.email),
+    phone: asString(raw.phone) || asString(basics.phone),
+    location: asString(raw.location) || asString(basics.location),
+    links: Array.isArray(raw.links)
+      ? raw.links.map((linkValue) => {
+        const link = asRecord(linkValue);
+        return { label: asString(link.label), url: asString(link.url) };
+      })
+      : [],
+    summary: asString(raw.summary) || asString(basics.summary),
+    experience: Array.isArray(raw.experience)
+      ? raw.experience.map((experienceValue) => {
+        const experience = asRecord(experienceValue);
+        return {
+          company: asString(experience.company),
+          title: asString(experience.title) || asString(experience.position),
+          location: asString(experience.location),
+          start_date: asString(experience.start_date) || asString(experience.startDate),
+          end_date: asString(experience.end_date) || asString(experience.endDate),
+          bullets: asStringArray(experience.bullets).length > 0
+            ? asStringArray(experience.bullets)
+            : asStringArray(experience.highlights),
+        };
+      })
+      : [],
+    education: Array.isArray(raw.education)
+      ? raw.education.map((educationValue) => {
+        const education = asRecord(educationValue);
+        const field = asString(education.field);
+        const degree = asString(education.degree);
+        return {
+          school: asString(education.school) || asString(education.institution),
+          degree: field && degree ? `${degree}, ${field}` : degree || field,
+          start_date: asString(education.start_date) || asString(education.startDate),
+          end_date: asString(education.end_date) || asString(education.endDate) || asString(education.graduationDate),
+          details: asString(education.details),
+        };
+      })
+      : [],
+    skills: asStringArray(raw.skills),
+    projects,
+  };
+};
+
+const adaptAiResult = (rawValue: unknown, resumeData: ResumeData): AiResult | null => {
+  const raw = asRecord(rawValue);
+  if (Object.keys(raw).length === 0) return null;
+
+  return {
+    atsScore: Number(raw.atsScore) || 0,
+    optimizedScore: Number(raw.optimizedScore) || 0,
+    keywords: normalizeKeywords(raw.keywords),
+    resumeData,
+    suggestions: asStringArray(raw.suggestions),
+  };
+};
+
+const atsPillClass = (score: number) => {
+  if (score >= 85) return "bg-emerald-500/15 text-emerald-500 border-emerald-500/30";
+  if (score >= 70) return "bg-lime-500/15 text-lime-500 border-lime-500/30";
+  if (score >= 55) return "bg-amber-500/15 text-amber-500 border-amber-500/30";
+  return "bg-rose-500/15 text-rose-500 border-rose-500/30";
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -23,7 +143,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -33,14 +153,22 @@ const Dashboard = () => {
       ]);
 
       if (resumeResponse.success && resumeResponse.data) {
-        setResumes(resumeResponse.data.map(r => ({
-          id: r._id,
-          title: r.title,
-          updatedAt: r.updatedAt,
-          atsScore: r.atsScore,
-          optimizedScore: r.optimizedScore,
-          template: r.template,
-        })));
+        setResumes(resumeResponse.data.map(r => {
+          const resumeData = adaptResumeData(r.resumeData);
+          const aiResult = adaptAiResult(r.aiResult, resumeData);
+          const liveAts = computeAts(resumeData, r.jobDescription || "", aiResult);
+
+          return {
+            id: r._id,
+            title: r.title,
+            updatedAt: r.updatedAt,
+            atsScore: r.atsScore,
+            optimizedScore: r.optimizedScore,
+            liveAtsScore: liveAts.score,
+            liveAtsBand: liveAts.band,
+            template: r.template,
+          };
+        }));
       }
 
       if (letterResponse.success && letterResponse.data) {
@@ -55,9 +183,9 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [load]);
 
   const deleteResume = async (id: string) => {
     try {
@@ -67,8 +195,8 @@ const Dashboard = () => {
         load();
         refetch();
       }
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err, "Failed to delete resume"), variant: "destructive" });
     }
   };
 
@@ -80,8 +208,8 @@ const Dashboard = () => {
         load();
         refetch();
       }
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err, "Failed to delete cover letter"), variant: "destructive" });
     }
   };
 
@@ -204,11 +332,13 @@ const Dashboard = () => {
                     <div className="font-medium truncate">{r.title}</div>
                     <div className="text-xs text-muted-foreground">{new Date(r.updatedAt).toLocaleString()} · {r.template}</div>
                   </button>
-                  {r.optimizedScore != null && (
-                    <Badge variant="outline" className="bg-accent/10 text-accent border-accent/30">
-                      ATS {r.optimizedScore}
-                    </Badge>
-                  )}
+                  <Badge
+                    variant="outline"
+                    className={`shrink-0 tabular-nums ${atsPillClass(r.liveAtsScore)}`}
+                    title={r.liveAtsBand}
+                  >
+                    ATS {r.liveAtsScore}
+                  </Badge>
                   <Button variant="ghost" size="icon" onClick={() => deleteResume(r.id)}>
                     <Trash2 className="w-4 h-4" />
                   </Button>

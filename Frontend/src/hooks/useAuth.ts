@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, createElement, useState, useEffect, useCallback, useContext, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { apiClient, authApi, subscriptionApi } from '@/lib/api';
 import type { User } from '@/lib/api/auth';
 import type { Subscription } from '@/lib/api/subscription';
@@ -12,7 +13,23 @@ export type SubscriptionRow = {
 export const FREE_RESUME_LIMIT = 3;
 export const FREE_COVER_LETTER_LIMIT = 3;
 
-export const useAuth = () => {
+type AuthContextValue = {
+  user: User | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<unknown>;
+  register: (email: string, password: string, displayName?: string) => Promise<unknown>;
+  logout: () => void;
+  completeOAuth: (token: string) => Promise<unknown>;
+};
+
+const normalizeUser = (user: User & { _id?: string }) => ({
+  ...user,
+  id: user.id || user._id || '',
+});
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -30,8 +47,7 @@ export const useAuth = () => {
       const response = await authApi.getMe();
 
       if (response.success && response.data) {
-        const u: any = response.data;
-        setUser({ ...u, id: u.id || u._id });
+        setUser(normalizeUser(response.data));
       } else {
         localStorage.removeItem('token');
         setUser(null);
@@ -48,57 +64,71 @@ export const useAuth = () => {
     initialize();
   }, [initialize]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
 
     if (response.success && response.data) {
       apiClient.setToken(response.data.token);
-      setUser(response.data.user);
+      setUser(normalizeUser(response.data.user));
       return response;
     }
 
     throw new Error(response.message || 'Login failed');
-  };
+  }, []);
 
-  const register = async (email: string, password: string, displayName?: string) => {
+  const register = useCallback(async (email: string, password: string, displayName?: string) => {
     const response = await authApi.register(email, password, displayName);
 
     if (response.success && response.data) {
       apiClient.setToken(response.data.token);
-      setUser(response.data.user);
+      setUser(normalizeUser(response.data.user));
       return response;
     }
 
     throw new Error(response.message || 'Registration failed');
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     apiClient.setToken(null);
     setUser(null);
-  };
+  }, []);
 
-  const completeOAuth = async (token: string) => {
+  const completeOAuth = useCallback(async (token: string) => {
     apiClient.setToken(token);
     const response = await authApi.getMe();
 
     if (response.success && response.data) {
-      const u: any = response.data;
-      setUser({ ...u, id: u.id || u._id });
+      setUser(normalizeUser(response.data));
       return response;
     }
 
     apiClient.setToken(null);
     throw new Error(response.message || 'OAuth login failed');
-  };
+  }, []);
 
-  return { user, loading, login, register, logout, completeOAuth };
+  const value = useMemo(
+    () => ({ user, loading, login, register, logout, completeOAuth }),
+    [user, loading, login, register, logout, completeOAuth],
+  );
+
+  return createElement(AuthContext.Provider, { value }, children);
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+
+  return context;
 };
 
 export const useSubscription = (userId: string | undefined) => {
   const [sub, setSub] = useState<SubscriptionRow | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     if (!userId) {
       setSub(null);
       setLoading(false);
@@ -119,11 +149,11 @@ export const useSubscription = (userId: string | undefined) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     refetch();
-  }, [userId]);
+  }, [refetch]);
 
   return { sub, loading, refetch };
 };

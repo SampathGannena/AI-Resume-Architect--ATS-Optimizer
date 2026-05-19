@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, LogOut, LayoutDashboard, FileText, Mail, UserCircle2, CreditCard } from "lucide-react";
+import { Sparkles, LogOut, LayoutDashboard, FileText, Mail, UserCircle2, CreditCard, Loader2 } from "lucide-react";
 import CareerForgeBrandIcon from "@/components/CareerForgeBrandIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +14,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 
 export const AppHeader = ({ active }: { active?: "dashboard" | "builder" | "editor" | "cover" }) => {
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const showAuthenticatedShell = loading || user;
 
   const signOut = () => {
     logout();
@@ -38,7 +39,7 @@ export const AppHeader = ({ active }: { active?: "dashboard" | "builder" | "edit
   return (
     <header
       className={`app-header border-b border-border/50 backdrop-blur-xl bg-background/80 sticky top-0 z-40 ${
-        user ? "app-header-auth" : ""
+        showAuthenticatedShell ? "app-header-auth" : ""
       }`}
     >
       <div className="container flex items-center justify-between h-16 gap-4">
@@ -49,7 +50,7 @@ export const AppHeader = ({ active }: { active?: "dashboard" | "builder" | "edit
           <span className="hidden sm:inline">CareerForge <span className="text-muted-foreground font-medium">Pro</span></span>
         </Link>
 
-        {user && (
+        {showAuthenticatedShell && (
           <nav className="flex items-center gap-1">
             {link("/dashboard", "dashboard", <LayoutDashboard className="w-3.5 h-3.5" />, "Dashboard")}
             {link("/builder", "builder", <Sparkles className="w-3.5 h-3.5" />, "AI builder")}
@@ -59,7 +60,11 @@ export const AppHeader = ({ active }: { active?: "dashboard" | "builder" | "edit
         )}
 
         <div className="flex items-center gap-2">
-          {user ? (
+          {loading ? (
+            <Button variant="ghost" size="icon" aria-label="Validating session" className="cf-user-trigger" disabled>
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </Button>
+          ) : user ? (
             <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
