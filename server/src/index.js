@@ -23,7 +23,8 @@ connectDB();
 app.use(cors({
   origin: [
     'http://localhost:5173', // for local dev
-    'https://carrerforge.up.railway.app' // your deployed frontend
+    'https://carrerforge.up.railway.app',
+    'https://careerforge.up.railway.app' // your deployed frontend
   ],
   credentials: true // if you use cookies or auth headers
 }));
