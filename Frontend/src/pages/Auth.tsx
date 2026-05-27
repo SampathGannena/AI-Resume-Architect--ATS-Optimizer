@@ -184,11 +184,11 @@ const Auth = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full bg-white text-slate-900 border border-slate-200 shadow-[0_0_18px_rgba(66,133,244,0.35)] hover:bg-slate-50 hover:shadow-[0_0_26px_rgba(66,133,244,0.5)]"
+                className="w-full google-button"
                 onClick={signInWithGoogle}
                 disabled={busy}
               >
-                Continue with Google
+                <span className="google-button-text">Continue with Google</span>
               </Button>
             </form>
           </Tabs>
