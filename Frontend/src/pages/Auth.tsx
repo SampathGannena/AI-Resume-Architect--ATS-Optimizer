@@ -188,7 +188,9 @@ const Auth = () => {
                 onClick={signInWithGoogle}
                 disabled={busy}
               >
+                <span className="google-button-symbol google-button-symbol-left" aria-hidden="true">G</span>
                 <span className="google-button-text">Continue with Google</span>
+                <span className="google-button-symbol google-button-symbol-right" aria-hidden="true">G</span>
               </Button>
             </form>
           </Tabs>
