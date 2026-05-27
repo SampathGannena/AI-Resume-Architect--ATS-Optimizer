@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ const Auth = () => {
   const [tab, setTab] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -143,7 +144,31 @@ const Auth = () => {
                     </button>
                   )}
                 </div>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} maxLength={72} required autoComplete={tab === "signup" ? "new-password" : "current-password"} />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={8}
+                    maxLength={72}
+                    required
+                    autoComplete={tab === "signup" ? "new-password" : "current-password"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 animate-[pulse_2.4s_ease-in-out_infinite]" />
+                    ) : (
+                      <Eye className="h-4 w-4 animate-[pulse_2.4s_ease-in-out_infinite]" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <Button type="submit" variant="hero" className="w-full" disabled={busy}>
@@ -156,7 +181,13 @@ const Auth = () => {
                 <span className="h-px flex-1 bg-border" />
               </div>
 
-              <Button type="button" variant="outline" className="w-full" onClick={signInWithGoogle} disabled={busy}>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full bg-white text-slate-900 border border-slate-200 shadow-[0_0_18px_rgba(66,133,244,0.35)] hover:bg-slate-50 hover:shadow-[0_0_26px_rgba(66,133,244,0.5)]"
+                onClick={signInWithGoogle}
+                disabled={busy}
+              >
                 Continue with Google
               </Button>
             </form>
