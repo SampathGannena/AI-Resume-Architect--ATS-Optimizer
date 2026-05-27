@@ -238,6 +238,8 @@
   -webkit-text-stroke: 1px hsl(0 0% 100% / 0.1);
   opacity: 0.55;
   pointer-events: none;
+  white-space: nowrap;
+  animation: footer-marquee 16s linear infinite;
 }
 
 .app-footer-timeline {
@@ -439,6 +441,11 @@
   0% { transform: translateY(0); opacity: 0.75; }
   50% { transform: translateY(-3px); opacity: 1; }
   100% { transform: translateY(0); opacity: 0.75; }
+}
+
+@keyframes footer-marquee {
+  0% { transform: translateX(-12%); }
+  100% { transform: translateX(12%); }
 }
 
 .cf-user-trigger {
