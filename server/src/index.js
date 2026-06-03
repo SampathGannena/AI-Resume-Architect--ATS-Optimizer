@@ -22,14 +22,14 @@ connectDB();
 
 app.use(cors({
   origin: [
-    'http://localhost:5173', // for local dev
+    'http://localhost:5173', 
     'https://carrerforge.up.railway.app',
-    'https://careerforge.up.railway.app' // your deployed frontend
+    'https://careerforge.up.railway.app' 
   ],
-  credentials: true // if you use cookies or auth headers
+  credentials: true
 }));
 
-// Stripe webhook MUST receive raw body (mounted before express.json)
+
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
   import('./controllers/billingController.js').then(({ handleWebhook }) => handleWebhook(req, res)).catch(next);
 });
