@@ -22,7 +22,8 @@ connectDB();
 
 app.use(cors({
   origin: [
-    'http://localhost:5173', 
+    'http://localhost:5173',
+    'https://careerforge-ehna.onrender.com', 
     'https://carrerforge.up.railway.app',
     'https://careerforge.up.railway.app' 
   ],
