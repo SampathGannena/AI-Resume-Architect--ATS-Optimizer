@@ -180,7 +180,7 @@ export const callGroqAI = async (promptType, userContent, options = {}) => {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage }
     ],
-    model: 'llama-3.3-70b-versatile',
+    model: 'llama-4-scout-17b-16e-instruct',
     temperature: 0.7,
     response_format: { type: 'json_object' },
   });
