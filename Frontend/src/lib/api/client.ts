@@ -44,14 +44,25 @@ class ApiClient {
         headers,
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({} as ApiResponse<T>));
 
       if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        const message = data.message || `Request failed with status ${response.status}`;
+        if (response.status >= 500 || response.status === 404) {
+          window.dispatchEvent(new CustomEvent('careerforge:api-error', {
+            detail: { kind: 'server', status: response.status, message },
+          }));
+        }
+        throw new Error(message);
       }
 
       return data;
     } catch (error) {
+      if (error instanceof TypeError) {
+        window.dispatchEvent(new CustomEvent('careerforge:api-error', {
+          detail: { kind: 'offline', status: 0, message: 'Unable to reach the server' },
+        }));
+      }
       throw error;
     }
   }

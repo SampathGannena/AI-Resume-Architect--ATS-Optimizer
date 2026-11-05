@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppBackground } from "@/components/AppBackground";
 import { AppFooter } from "@/components/AppFooter";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ApiErrorMonitor } from "@/components/ApiErrorMonitor";
 import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
@@ -16,6 +17,7 @@ import Editor from "./pages/Editor.tsx";
 import CoverLetter from "./pages/CoverLetter.tsx";
 import Billing from "./pages/Billing.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import ErrorPage from "./pages/ErrorPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -27,9 +29,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <ApiErrorMonitor />
           <div className="min-h-screen flex flex-col">
             <div className="flex-1">
               <Routes>
+                <Route path="/error" element={<ErrorPage />} />
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/reset-password" element={<ResetPassword />} />

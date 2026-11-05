@@ -160,7 +160,7 @@ const Dashboard = () => {
 
           return {
             id: r._id,
-            title: r.title,
+            title: resumeData.name.trim() || r.title,
             updatedAt: r.updatedAt,
             atsScore: r.atsScore,
             optimizedScore: r.optimizedScore,

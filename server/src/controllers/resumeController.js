@@ -100,12 +100,17 @@ export const rewriteResume = async (req, res) => {
       jobDescription,
     });
 
+    const resumeData = aiResult.resumeData || {};
+    const resumeHolderName = String(
+      resumeData.name || resumeData.basics?.name || ''
+    ).trim();
+
     const resume = await Resume.create({
       userId: req.user._id,
-      title: `Optimized Resume - ${new Date().toLocaleDateString()}`,
+      title: resumeHolderName || `Resume - ${new Date().toLocaleDateString()}`,
       sourceText: resumeText,
       jobDescription,
-      resumeData: aiResult.resumeData || {},
+      resumeData,
       atsScore: aiResult.atsScore || 0,
       optimizedScore: aiResult.optimizedScore || 0,
       aiResult,
