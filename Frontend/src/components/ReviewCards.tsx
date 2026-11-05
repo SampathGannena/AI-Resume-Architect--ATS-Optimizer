@@ -112,9 +112,9 @@ const ReviewCards = () => {
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative mx-4 overflow-hidden">
         <div
-          className="flex"
+          className="flex py-2"
           style={{
             animation: "scroll-reviews 60s linear infinite",
             width: "max-content",
