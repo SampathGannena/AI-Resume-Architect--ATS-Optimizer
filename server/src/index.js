@@ -27,7 +27,7 @@ const corsOrigins = (process.env.CORS_ORIGINS || [
   'https://careerforge.up.railway.app',
 ].join(','))
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
 app.use(cors({

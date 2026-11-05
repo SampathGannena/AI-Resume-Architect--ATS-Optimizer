@@ -10,7 +10,7 @@ const generateToken = (id) => {
 };
 
 const getFrontendAuthUrl = (params = {}) => {
-  const appUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+  const appUrl = (process.env.FRONTEND_URL || 'http://localhost:8080').replace(/\/+$/, '');
   const qs = new URLSearchParams(params).toString();
   return `${appUrl}/auth${qs ? `?${qs}` : ''}`;
 };
