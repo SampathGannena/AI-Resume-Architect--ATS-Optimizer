@@ -20,13 +20,18 @@ const app = express();
 
 connectDB();
 
+const corsOrigins = (process.env.CORS_ORIGINS || [
+  'http://localhost:5173',
+  'https://careerforge-ehna.onrender.com',
+  'https://carrerforge.up.railway.app',
+  'https://careerforge.up.railway.app',
+].join(','))
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://careerforge-ehna.onrender.com', 
-    'https://carrerforge.up.railway.app',
-    'https://careerforge.up.railway.app' 
-  ],
+  origin: corsOrigins,
   credentials: true
 }));
 

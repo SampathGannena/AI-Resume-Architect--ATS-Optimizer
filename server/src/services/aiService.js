@@ -180,8 +180,8 @@ export const callGroqAI = async (promptType, userContent, options = {}) => {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage }
     ],
-    model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
-    temperature: 0.7,
+    model: process.env.GROQ_MODEL,
+    temperature: 0.2,
     response_format: { type: 'json_object' },
   });
 
